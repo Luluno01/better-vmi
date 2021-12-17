@@ -1,0 +1,2 @@
+// Set to 1 to enable debuggin
+#cmakedefine01 DEBUG
