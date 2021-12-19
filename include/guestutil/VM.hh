@@ -115,6 +115,10 @@ public:
     }
   }
 
+  inline status_t tryPause() {
+    return vmi_pause_vm(vmi);
+  }
+
   inline status_t tryResume() {
     return vmi_resume_vm(vmi);
   }
