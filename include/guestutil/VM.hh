@@ -43,16 +43,26 @@ public:
 class VM {
 protected:
   vmi_instance_t vmi;
+  /**
+   * @brief Init data, managed by us
+   * 
+   */
   vmi_init_data_t *initData;  // Unused for now
+  /**
+   * @brief The actual init flags used during initialization.
+   * 
+   */
+  uint64_t initFlags;
 public:
   VM() {
     DBG() << "VM()";
     vmi = {0};
     initData = nullptr;
+    initFlags = 0;
   }
 
   VM(const char *name, uint64_t initFlags = 0) {
-    DBG() << "VM(const char *name)" << std::endl;
+    DBG() << "VM(const char *name, uint64_t initFlags)" << std::endl;
     vmi = {0};
     initData = nullptr;
     init(
@@ -66,6 +76,7 @@ public:
     vmi_config_t configMode, void *config
   ) {
     vmi_init_error_t err = VMI_INIT_ERROR_NONE;
+    this->initFlags = initFlags;
     if (vmi_init_complete(
       &vmi,
       domain, initFlags,
@@ -74,6 +85,8 @@ public:
       config,
       &err
     ) == VMI_FAILURE) {
+      vmi = {0};
+      this->initFlags = 0;
       throw VMIInitError(err);
     }
   }
@@ -82,9 +95,17 @@ public:
     return vmi;
   }
 
+  inline uint64_t getInitFlags() {
+    return initFlags;
+  }
+
+  inline bool isEventEnabled() {
+    return getInitFlags() & VMI_INIT_EVENTS;
+  }
+
   inline void pause() {
     if (vmi_pause_vm(vmi) == VMI_FAILURE) {
-      throw ResumeError();
+      throw PauseError();
     }
   }
 
