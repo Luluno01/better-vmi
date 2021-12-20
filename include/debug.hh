@@ -5,6 +5,7 @@
 #include <config.h>
 #include <iostream>
 #include <iomanip>
+#include <limits>
 
 
 #ifdef DEBUG
@@ -18,6 +19,15 @@
  * 
  */
 #define F_PTR(intVal) reinterpret_cast<void *>(intVal)
+
+template <typename NumType>
+inline bool isSigned(const NumType &_) {
+  return std::numeric_limits<NumType>::is_signed;
+}
+
+#define F_DEC(intVal) \
+  << std::dec << (isSigned(intVal) ? signed(intVal) : unsigned(intVal))
+  // Because sometimes it prints in hex format, I have no idea why
 
 /**
  * @brief Format as a hexadecimal integer.

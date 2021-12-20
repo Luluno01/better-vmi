@@ -21,6 +21,7 @@
 #include <map>  // std::map
 #include <functional>  // std::function
 #include <memory>  // std::shared_ptr
+#include <vector>  // std::vector
 #include <exception>
 #include <debug.hh>
 #include <pretty-print.hh>
@@ -118,6 +119,12 @@ public:
    * @brief Disable this breakpoint by removing the injected breakpoint
    * instruction if any. Do nothing if the injection has not been done.
    * 
+   * Note that there could still be pending events caused by this breakpoint.
+   * They must be handled or the default behavior is reinjecting the interrupt,
+   * which crashes the guest with "interrupt error". Alternatively, we can
+   * pause the guest, drain all the events (by checking pending events using
+   * `vmi_are_events_pending`), and then disable the breakpoint.
+   * 
    */
   inline void disable() {
     if (enabled) {
@@ -163,6 +170,21 @@ class BreakpointEventNotRegisteredError: public BreakpointRegistryError {
 public:
   virtual const char *what() const throw() {
     return "The breakpoint event is not yet registered";
+  }
+};
+
+class DisableAllError: public BreakpointRegistryError {
+private:
+  std::vector<memory::MemoryWriteError> errors;
+public:
+  DisableAllError(std::vector<memory::MemoryWriteError> errs): errors(errs) {};
+
+  inline std::vector<memory::MemoryWriteError> getErrors() {
+    return errors;
+  }
+
+  virtual const char *what() const throw() {
+    return "Some/all breakpoints cannot be disabled";
   }
 };
 
@@ -260,6 +282,8 @@ public:
   /**
    * @brief Register the INT3 event.
    * 
+   * Note the VMI must be initialized with `VMI_INIT_EVENTS` flag set.
+   * 
    */
   inline void registerEvent() {
     DBG() << "BreakpointRegistry::registerEvent()" << std::endl;
@@ -281,6 +305,12 @@ public:
     }
   }
 
+  /**
+   * @brief Unregister the INT3 event w/o disabling breakpoints first.
+   * 
+   * Hint: use `disableAll` to disable all breakpoints.
+   * 
+   */
   inline void unregisterEvent() {
     if (!event) {
       throw BreakpointEventNotRegisteredError();
@@ -288,6 +318,25 @@ public:
     DBG() << "BreakpointRegistry::unregisterEvent()" << std::endl;
     vmi_clear_event(vmi, event, doAfterClearEvent);
     event = nullptr;  // Mark free-in-progress
+  }
+
+  /**
+   * @brief Disable all registered breakpoints.
+   * 
+   */
+  inline void disableAll() {
+    DBG() << "Breakpoint::disableAll()" << std::endl;
+    std::vector<memory::MemoryWriteError> errors;
+    for (auto it : bps) {
+      try {
+        it.second->disable();
+      } catch (memory::MemoryWriteError &err) {
+        errors.push_back(err);
+      }
+    }
+    if (errors.size()) {
+      throw DisableAllError(errors);
+    }
   }
 
   ~BreakpointRegistry() {
@@ -321,7 +370,9 @@ public:
   }
 
   /**
-   * @brief Unset a breakpoint at kernel address `addr`.
+   * @brief Unset a breakpoint at kernel address `addr` and disable it.
+   * 
+   * Note that you must pause the event loop before making this change.
    * 
    * @param addr 
    * @return std::shared_ptr<Breakpoint> the unset breakpoint.
@@ -330,11 +381,21 @@ public:
     auto it = bps.find(addr);
     if (it != bps.end()) {
       auto bp = it->second;
+      bp->disable();
       bps.erase(it);
       return bp;
     } else {
       return nullptr;
     }
+  }
+
+  /**
+   * @brief Get the underlying map of registered breakpoints.
+   * 
+   * @return std::map<addr_t, std::shared_ptr<Breakpoint>>& 
+   */
+  inline std::map<addr_t, std::shared_ptr<Breakpoint>> &getBps() {
+    return bps;
   }
 };
 
