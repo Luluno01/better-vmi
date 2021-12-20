@@ -50,9 +50,9 @@ include_directories(
 add_executable(proc-list proc-list.cc)
 target_link_libraries(proc-list PRIVATE ${LIBVMI})
 
-# add_executable(breakpoint breakpoint.cc)
-# target_link_libraries(
-#   breakpoint
-#   PRIVATE ${LIBVMI}
-#   PRIVATE ${LIBCAPSTONE}
-# )
+add_executable(breakpoint breakpoint.cc)
+target_link_libraries(
+  breakpoint
+  PRIVATE ${LIBVMI}
+  # PRIVATE ${LIBCAPSTONE}
+)
