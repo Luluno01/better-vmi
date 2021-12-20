@@ -16,7 +16,7 @@
 #include <guestutil/mem.hh>
 #include <guestutil/mem/TempMem.hh>
 #include <guestutil/event/data.hh>
-#include <guestutil/breakpoint/Instruction.hh>
+// #include <guestutil/breakpoint/Instruction.hh>
 #include <cstdint>  // uintptr_t
 #include <map>  // std::map
 #include <functional>  // std::function
@@ -110,7 +110,8 @@ public:
   inline void enable() {
     DBG() << "Breakpoint.enable()" << std::endl
           << "  addr: " << F_PTR(addr) << std::endl;
-    readInstruction<CS_ARCH_X86, CS_MODE_64>(vmi, addr, 0, emul.data);
+    // readInstruction<CS_ARCH_X86, CS_MODE_64>(vmi, addr, 0, emul.data);
+    memory::readKVA(vmi, addr, 15, emul.data);
     memory::write8KVA(vmi, addr, breakpointInstruction);
     enabled = true;
   }
@@ -123,7 +124,9 @@ public:
    * They must be handled or the default behavior is reinjecting the interrupt,
    * which crashes the guest with "interrupt error". Alternatively, we can
    * pause the guest, drain all the events (by checking pending events using
-   * `vmi_are_events_pending`), and then disable the breakpoint.
+   * `vmi_are_events_pending`), and then disable the breakpoint. That means you
+   * have to call `event::Loop::schedulePause` and disable breakpoints in the
+   * callback.
    * 
    */
   inline void disable() {
@@ -256,9 +259,20 @@ private:
       // See libvmi/examples/breakpoint-emulate-example.c
       return VMI_EVENT_RESPONSE_NONE;
     }
+    auto bp = bpIter->second;
+    if (!(bp->isEnabled())) {
+      /*
+      Do not deliver this event to the breakpoint if it's disabled.
+      By doing this filtering, the correctness relies on the assumption
+      "once the breakpoint is enabled and the event loop is bumping, the
+      breakpoint is only disabled when both the VM and the event loop are
+      paused and all the events are drained".
+      */
+      intEvent.reinject = 1;
+      return VMI_EVENT_RESPONSE_NONE;
+    }
     // Otherwise, this event is triggered by our breakpoint
     intEvent.reinject = 0;
-    auto bp = bpIter->second;
     // Invoke the callback
     bp->onHit(event);
     // Emulate original instruction;
