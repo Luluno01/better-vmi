@@ -8,6 +8,7 @@
 #include <guestutil/mem.hh>
 #include <guestutil/mem/TempMem.hh>
 #include <guestutil/breakpoint/Breakpoint.hh>
+#include <guestutil/breakpoint/BreakpointRegistry.hh>
 #include <guestutil/event/Loop.hh>
 
 
