@@ -58,7 +58,7 @@ public:
   inline friend
   std::ostream &operator<<(std::ostream &os, const InterruptEvent &event) {
     std::string ind(indent, ' ');
-    os << ind << "interrupt_event_t {" << std::endl
+    os << "{" << std::endl
        << ind << "  intr: ";
     auto &e = event.event;
     switch (e.intr) {
@@ -86,12 +86,72 @@ public:
   }
 };
 
+class MemoryAccess {
+private:
+  vmi_mem_access_t access;
+public:
+  MemoryAccess(vmi_mem_access_t _access): access(_access) {};
+
+  inline friend
+  std::ostream &operator<<(std::ostream &os, const MemoryAccess &access) {
+    switch (access.access) {
+#define CASE(x) case VMI_MEMACCESS_ ## x: os << #x
+      CASE(INVALID); break;
+      CASE(N); break;
+      CASE(R); break;
+      CASE(W); break;
+      CASE(X); break;
+      CASE(RW); break;
+      CASE(RX); break;
+      CASE(WX); break;
+      CASE(RWX); break;
+      CASE(W2X); break;
+      CASE(RWX2N); break;
+#undef CASE
+      default:
+        os << "???";
+    }
+    return os;
+  }
+};
+
+template <int indent>
+class MemoryEvent {
+private:
+  mem_access_event_t &event;
+public:
+  MemoryEvent(mem_access_event_t *_event): event(*_event) {};
+  MemoryEvent(mem_access_event_t &_event): event(_event) {};
+
+  inline friend
+  std::ostream &operator<<(std::ostream &os, const MemoryEvent &event) {
+    std::string ind(indent, ' ');
+    auto &e = event.event;
+    os << "{" << std::endl
+       << ind << PP_MEMBER_PTR_LN("  ", e, gfn)
+       << ind << "  in_access: " << MemoryAccess(e.in_access) << std::endl
+       << ind << "  out_access: " << MemoryAccess(e.out_access) << std::endl
+       << ind << PP_MEMBER_UINT8_LN("  ", e, gptw)
+       << ind << PP_MEMBER_UINT8_LN("  ", e, gla_valid)
+       << ind << PP_MEMBER_PTR_LN("  ", e, gla)
+       << ind << PP_MEMBER_HEX_LN("  ", e, offset)
+       << ind << "}";
+    return os;
+  }
+};
+
 
 #define PP_EVENT(type) print__ ## type
 #define DEFINE_PP_EVENT(type) \
   inline std::ostream \
   &print__ ## type(std::ostream &os) const
 
+/**
+ * @brief Pretty print utility class for `vmi_event_t`.
+ * 
+ * @tparam eventType type of the event to print.
+ * @tparam indent the indentation measured by the number of spaces.
+ */
 template <vmi_event_type_t eventType, int indent>
 class Event {
 private:
@@ -108,7 +168,11 @@ private:
 
   DEFINE_PP_EVENT(VMI_EVENT_MEMORY) {
     PROLOGUE();
-    os << ind << "vmi_event_t MEMORY {}";
+    os << ind << "vmi_event_t MEMORY {" << std::endl
+       << ind << PP_MEMBER_LN("  ", event, slat_id)
+       << ind << PP_MEMBER_PTR_LN("  ", event, data)
+       << ind << "  mem_event: " << MemoryEvent<indent + 2>(event.mem_event) << std::endl
+       << ind << "}";
     return os;
   }
 
@@ -132,7 +196,8 @@ private:
        << ind << PP_MEMBER_LN("  ", event, data)
        << ind << PP_MEMBER_PTR_LN("  ", event, callback)
        << ind << PP_MEMBER_LN("  ", event, vcpu_id)
-       << ind << PP_MEMBER_LN("  ", event, page_mode);  // FIXME
+       << ind << PP_MEMBER_LN("  ", event, page_mode)  // FIXME
+       << ind << "  interrupt_event: ";
     // This ugly switch is used to bypass the consexpr requirement of
     // `InterruptEvent`
     interrupt_event_t &intEvent = event.interrupt_event;

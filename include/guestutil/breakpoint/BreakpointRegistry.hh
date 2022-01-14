@@ -22,6 +22,7 @@
 #include <exception>
 
 #include <guestutil/mem.hh>
+#include <guestutil/event/error.hh>
 #include <guestutil/event/data.hh>
 #include <debug.hh>
 #include <pretty-print.hh>
@@ -40,7 +41,8 @@ public:
   }
 };
 
-class BreakpointEventRegistrationError: public BreakpointRegistryError {
+class RegistrationError:
+  public BreakpointRegistryError, public event::RegistrationError {
 public:
   virtual const char *what() const throw() {
     return "Failed to register a breakpoint event";
@@ -200,7 +202,7 @@ public:
       delete reinterpret_cast<event::EventData<BreakpointRegistry>*>(
         event->data);
       delete event;
-      throw BreakpointEventRegistrationError();
+      throw RegistrationError();
     }
   }
 

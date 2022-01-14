@@ -18,6 +18,20 @@ public:
   }
 };
 
+class NullEventDataError: public EventError {
+public:
+  virtual const char *what() const throw() {
+    return "Null event data";
+  }
+};
+
+class UnexpectedEventDataSentinelError: public EventError {
+public:
+  virtual const char *what() const throw() {
+    return "Unexpected event data sentinel";
+  }
+};
+
 
 template <typename Payload>
 class EventData {
@@ -51,8 +65,11 @@ public:
    */
   inline static EventData<Payload> &fromEvent(uint32_t sentinel, vmi_event_t *event) {
     EventData<Payload> *data = reinterpret_cast<EventData*>(event->data);
-    if (!data || data->getSentinel() != sentinel) {
-      throw EventDataError();
+    if (!data) {
+      throw NullEventDataError();
+    }
+    if (data->getSentinel() != sentinel) {
+      throw UnexpectedEventDataSentinelError();
     }
     return *data;
   }

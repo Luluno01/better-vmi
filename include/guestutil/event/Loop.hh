@@ -2,6 +2,7 @@
 #define C9D5657B_0418_45B4_8F4E_317136EB143A
 
 
+#include <string>  // std::string
 #include <functional>  // std::function
 
 #include <libvmi/libvmi.h>
@@ -40,7 +41,7 @@ private:
    * this life of this loop is ending.
    * 
    */
-  const char *stopRequestedBy;
+  std::string stopRequestedBy;
 
   inline void handleError() {
     // TODO: possible cleanup?
@@ -90,21 +91,23 @@ private:
       // Error
       throwErr<GetPendingError>();
     }
-    if (stopRequestedBy) {
+    if (!stopRequestedBy.empty()) {
       // Someone requested stop when we are trying to pause the event loop
       throwErr<StoppingError>();
     }
     DBG() << "Loop::handlePause() - calling onPauseCallback" << std::endl;
     try {
-      onPausedCallback();
+      onPausedCallback();  // May request stop
     } catch (std::exception &err) {
       std::cerr << "Error in onPause callback: " << err.what() << std::endl;
       throwErr<PauseCallbackError>();
     }
   }
 public:
+  Loop(const Loop &) = delete;
+  Loop(const Loop &&) = delete;
   Loop(vm::VM &_vm): vm(_vm),
-    err(nullptr), onPausedCallback(), stopRequestedBy(nullptr) {};
+    err(nullptr), onPausedCallback(), stopRequestedBy("") {};
   ~Loop() {
     if (err) {
       delete err;
@@ -119,7 +122,7 @@ public:
    */
   inline EventError *bump() {
     DBG() << "Loop::bump()" << std::endl;
-    while (!err && !stopRequestedBy) {
+    while (!err && stopRequestedBy.empty()) {
       if (onPausedCallback) {
         handlePause();
         onPausedCallback = nullptr;
@@ -140,7 +143,7 @@ public:
    * @param callback 
    * @param who who is making this request? This is only used for debugging.
    */
-  inline void schedulePause(std::function<void()> callback, const char *who) {
+  inline void schedulePause(std::function<void()> callback, std::string who) {
     if (onPausedCallback) {
       throw PausePendingError();
     }
@@ -155,10 +158,22 @@ public:
    * 
    * @param who who send the stop signal.
    */
-  inline void stop(const char *who) {
-    DBG() << "Loop::stop(const char *)" << std::endl
+  inline void stop(std::string who) {
+    DBG() << "Loop::stop(std::string )" << std::endl
           << "  Stop requested by " << who << std::endl;
     stopRequestedBy = who;
+  }
+
+  /**
+   * @brief Asynchronously pause the event loop while draining the events, then
+   * stop the event loop.
+   * 
+   * @param who 
+   */
+  inline void schedulePauseThenStop(std::string who) {
+    schedulePause([this, who]() {
+      stop(who + " (second step)");
+    }, who + " (first step)");
   }
 
   /**
@@ -181,7 +196,7 @@ public:
     return err;
   }
 
-  inline const char *getStopRequestedBy() const {
+  inline std::string getStopRequestedBy() const {
     return stopRequestedBy;
   }
 };

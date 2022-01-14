@@ -60,6 +60,20 @@ public:
   }
 };
 
+class RegistrationError: public EventError {
+public:
+  virtual const char *what() const throw() {
+    return "Failed to register the event";
+  }
+};
+
+class UnregistrationError: public EventError {
+public:
+  virtual const char *what() const throw() {
+    return "Failed to unregister the event";
+  }
+};
+
 }
 }
 

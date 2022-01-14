@@ -127,6 +127,10 @@ public:
     return vmi_get_vmid(vmi);
   }
 
+  inline unsigned int numVCPUs() {
+    return vmi_get_num_vcpus(vmi);
+  }
+
   ~VM() {
     DBG() << "~VM()" << std::endl;
     vmi_resume_vm(vmi);

@@ -263,6 +263,167 @@ DEFINE_WRITE_UINT_N_KVA_ALIAS(16);
 DEFINE_WRITE_UINT_N_KVA_ALIAS(32);
 DEFINE_WRITE_UINT_N_KVA_ALIAS(64);
 
+
+/* Memory address translation utilities */
+
+/* Enum types & useful macros */
+
+enum TranslationType {
+  /**
+   * @brief Guest physical address to guest frame number.
+   * 
+   * This type of translation never fails for now. Added here for completeness.
+   * 
+   */
+  GPA_TO_GFN,
+  /**
+   * @brief Kernel virtual address to guest physical address.
+   * 
+   */
+  KVA_TO_GPA,
+  /**
+   * @brief Kernel virtual address to guest frame number.
+   * 
+   */
+  KVA_TO_GFN,
+  /**
+   * @brief Kernel symbol to kernel virtual address.
+   * 
+   */
+  KSYM_TO_KVA,
+  /**
+   * @brief Kernel symbol to guest physical address.
+   * 
+   */
+  KSYM_TO_GPA,
+  /**
+   * @brief Kernel symbol to guest frame number.
+   * 
+   */
+  KSYM_TO_GFN,
+};
+
+/* ======== Errors ======== */
+
+class MemoryTranslationError: public MemoryError {
+public:
+  /**
+   * @brief Symbol name to translate (if any) that caused this error.
+   * 
+   */
+  const char *symbol;
+  TranslationType type;
+
+  /**
+   * @brief Construct a new Memory Translation Error object.
+   * 
+   * @param _type Translation type.
+   * @param _addr The virtual address to translate (if any) that caused this
+   * error.
+   * @param _symbol The symbol name to translate (if any) that caused this
+   * error.
+   */
+  MemoryTranslationError(
+    TranslationType _type,
+    addr_t _addr, const char *_symbol
+  ): MemoryError(_addr), symbol(_symbol), type(_type) {};
+  
+  virtual const char *what() const throw() {
+    return "Failed to translate memory address";
+  }
+};
+
+/* ======== Translations ======== */
+
+/**
+ * @brief The number of lower bits to discard when calculating the frame
+ * number.
+ * 
+ * For now, this is hardcoded as 12 (x86 specific).
+ * 
+ * @see https://www.kernel.org/doc/Documentation/virtual/kvm/mmu.txt
+ * 
+ */
+constexpr unsigned int PAGE_SHIFT = 12;
+
+/**
+ * @brief Convert a GPA (Guest Physical Address) to GFN (Guest Frame Number).
+ * 
+ * @param[in] gpa The guest physical address to be translated.
+ * @return addr_t The frame number of given guest physical address.
+ */
+inline addr_t gpaToGFN(addr_t gpa) {
+  return gpa >> PAGE_SHIFT;
+}
+
+/**
+ * @brief Convert a KVA (Kernel Virtual Address) to GPA (Guest Physical
+ * Address).
+ * 
+ * @param[in] vmi 
+ * @param[in] kva The guest kernel virtual address to be translated.
+ * @return addr_t The guest physical address of given guest kernel virtual
+ * address.
+ */
+inline addr_t kvaToGPA(vmi_instance_t vmi, addr_t kva) {
+  addr_t gpa = 0;
+  if (vmi_translate_kv2p(vmi, kva, &gpa) == VMI_FAILURE) {
+    throw MemoryTranslationError(KVA_TO_GPA, kva, nullptr);
+  }
+  return gpa;
+}
+
+/**
+ * @brief Convert a KVA (Kernel Virtual Address) to GFN (Guest Frame Number).
+ * 
+ * @param[in] vmi 
+ * @param[in] kva The guest kernel virtual address to be translated.
+ * @return addr_t The frame number of given guest kernel virtual address.
+ */
+inline addr_t kvaToGFN(vmi_instance_t vmi, addr_t kva) {
+  // Translate to GPA first, and then to GFN
+  return gpaToGFN(kvaToGPA(vmi, kva));
+}
+
+/**
+ * @brief Translate a KSYM (Kernel Symbol) to KVA (Kernel Virtual Address).
+ * 
+ * @param[in] vmi 
+ * @param[in] symbol The kernel symbol to be translated.
+ * @return addr_t The kernel virtual address of given symbol.
+ */
+inline addr_t ksymToKVA(vmi_instance_t vmi, const char *symbol) {
+  addr_t kva = 0;
+  if (vmi_translate_ksym2v(vmi, symbol, &kva) == VMI_FAILURE) {
+    throw MemoryTranslationError(KSYM_TO_KVA, 0, symbol);
+  }
+  return kva;
+}
+
+/**
+ * @brief Translate a KSYM (Kernel Symbol) to GPA (Guest Physical Address).
+ * 
+ * @param[in] vmi 
+ * @param[in] symbol The kernel symbol to be translated.
+ * @return addr_t The guest physical address of given symbol.
+ */
+inline addr_t ksymToGPA(vmi_instance_t vmi, const char *symbol) {
+  // Translate to KVA first, and then to GPA
+  return kvaToGPA(vmi, ksymToKVA(vmi, symbol));
+}
+
+/**
+ * @brief Translate a KSYM (Kernel Symbol) to GFN (Guest Frame Number).
+ * 
+ * @param[in] vmi 
+ * @param[in] symbol The kernel symbol to be translated.
+ * @return addr_t The guest frame number of given symbol.
+ */
+inline addr_t ksymToGFN(vmi_instance_t vmi, const char *symbol) {
+  // Translate to GPA first, and then to GFN
+  return gpaToGFN(ksymToGPA(vmi, symbol));
+}
+
 }
 }
 

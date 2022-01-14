@@ -38,6 +38,8 @@ configure_file(config.h.in config.h @ONLY)
 
 find_library(LIBVMI vmi)
 # find_library(LIBCAPSTONE capstone)
+find_library(LIBXC xenctrl)  # This is the system libxc
+# find_library(LIBXS xenstore)  # This is the system libxs
 
 include_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -55,4 +57,11 @@ target_link_libraries(
   breakpoint
   PRIVATE ${LIBVMI}
   # PRIVATE ${LIBCAPSTONE}
+)
+
+add_executable(altp2m-mem-event altp2m-mem-event.cc)
+target_link_libraries(
+  altp2m-mem-event
+  PRIVATE ${LIBVMI}
+  PRIVATE ${LIBXC}
 )

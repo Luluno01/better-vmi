@@ -126,7 +126,7 @@ public:
     if (enabled) {
       DBG() << "Breakpoint.disable()" << std::endl
             << "  addr        : " << F_PTR(addr) << std::endl
-            << "  emul.data[0]: " << F_HEX(emul.data[0]) << std::endl;
+            << "  emul.data[0]: " << F_UH32(emul.data[0]) << std::endl;
       memory::write8KVA(vmi, addr, emul.data[0]);
       enabled = false;
     }
