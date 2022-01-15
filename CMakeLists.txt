@@ -65,3 +65,6 @@ target_link_libraries(
   PRIVATE ${LIBVMI}
   PRIVATE ${LIBXC}
 )
+
+add_executable(get-mem get-mem.cc)
+target_link_libraries(get-mem PRIVATE ${LIBVMI})
