@@ -357,6 +357,17 @@ inline addr_t gpaToGFN(addr_t gpa) {
 }
 
 /**
+ * @brief Convert a GLA (Guest Linear Address) to the page number (in virtual
+ * address space).
+ * 
+ * @param gla The guest linear address to be translated.
+ * @return addr_t The page number of given guest linear address.
+ */
+inline addr_t glaToPageNum(addr_t gla) {
+  return gla >> PAGE_SHIFT;
+}
+
+/**
  * @brief Convert a KVA (Kernel Virtual Address) to GPA (Guest Physical
  * Address).
  * 

@@ -100,12 +100,12 @@ inline NumType _abs(const NumType &intVal) {
 template <typename IT>
 class F_HEX {
 private:
-  IT n;
+  const IT n;
 public:
-  F_HEX(IT _n): n(_n) {};
+  F_HEX(const IT _n): n(_n) {};
   inline friend
   std::ostream &operator<<(std::ostream &os, const F_HEX &self) {
-    IT n = self.n;
+    const IT n = self.n;
     if (isSigned(n)) {
       if (sizeof(n) > 4) os << F_H64(n);
       else os << F_H32(n);
@@ -120,12 +120,12 @@ public:
 template <typename IT>
 class F_SHORT_HEX {
 private:
-  IT n;
+  const IT n;
 public:
-  F_SHORT_HEX(IT _n): n(_n) {};
+  F_SHORT_HEX(const IT _n): n(_n) {};
   inline friend
   std::ostream &operator<<(std::ostream &os, const F_SHORT_HEX &self) {
-    IT n = self.n;
+    const IT n = self.n;
     if (isSigned(n)) {
       if (sizeof(n) > 4) os << F_SHORT_H64(n);
       else os << F_SHORT_H32(n);
