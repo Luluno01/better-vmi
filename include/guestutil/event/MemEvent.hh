@@ -144,7 +144,8 @@ enum MemEventKey {
  * Usage: see `MemEventRegistry`.
  * 
  */
-class MemEvent: public EventEmitter<MemEventKey, vmi_event_t*> {
+class MemEvent:
+  public EventEmitter<MemEventKey, vmi_instance_t, vmi_event_t*> {
 public:
   static uint32_t typeId;
 

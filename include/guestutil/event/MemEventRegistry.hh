@@ -100,12 +100,13 @@ enum RegistryEvent {
  * reg.init();
  * addr_t gfn = memory::kvaToGFN(vmi, ...);
  * auto memEvent = reg.registerForGFN(gfn);
- * memEvent->on(MemEventKey::AFTER, ...);
+ * memEvent->on(MemEventKey::BEFORE, ...);
  * vm.resume();
  * ```
  * 
  */
-class MemEventRegistry: public EventEmitter<RegistryEvent, void*> {
+class MemEventRegistry:
+  public EventEmitter<RegistryEvent, vmi_instance_t, void*> {
 private:
   using FrameToEventMapping = std::map<addr_t, std::shared_ptr<MemEvent>>;
 
@@ -119,7 +120,8 @@ private:
    * handled.
    * 
    */
-  class UnregisteredCallback: public EventCallback<vmi_event_t*> {
+  class UnregisteredCallback:
+    public EventCallback<vmi_instance_t, vmi_event_t*> {
   private:
     MemEventRegistry &reg;
     addr_t gfn;

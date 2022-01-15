@@ -18,7 +18,7 @@
 using namespace guestutil;
 
 
-class MemEventCallback: public EventCallback<vmi_event_t*> {
+class MemEventCallback: public EventCallback<vmi_instance_t, vmi_event_t*> {
 private:
   event::Loop &loop;
   event::memory::MemEventRegistry &reg;

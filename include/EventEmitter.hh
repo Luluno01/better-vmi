@@ -2,8 +2,6 @@
 #define DA206AA8_8228_4B2F_A2D7_F27134B84EE6
 
 
-#include <libvmi/libvmi.h>
-
 #include <iostream>
 #include <map>  // std::map
 #include <functional>  // std::function
@@ -16,16 +14,15 @@
 #include <debug.hh>
 
 
-template <typename ArgType>
+template <typename... ArgTypes>
 class EventCallback {
 public:
   /**
    * @brief The actual callback.
    * 
-   * @param vmi 
-   * @param event 
+   * @param args 
    */
-  virtual void operator()(vmi_instance_t vmi, ArgType event) = 0;
+  virtual void operator()(ArgTypes... args) = 0;
   /**
    * @brief Describe this callback (for debugging).
    * 
@@ -40,18 +37,18 @@ public:
  * @brief Shortcut for creating an event callback.
  * 
  */
-template <typename ArgType>
-class LambdaEventCallback: public EventCallback<ArgType> {
+template <typename... ArgTypes>
+class LambdaEventCallback: public EventCallback<ArgTypes...> {
 public:
-  using RawCallback = std::function<void(vmi_instance_t, ArgType)>;
+  using RawCallback = std::function<void(ArgTypes...)>;
 private:
   RawCallback callback;
   std::string desc;
 public:
   LambdaEventCallback(RawCallback _callback): callback(_callback) {};
 
-  virtual void operator()(vmi_instance_t vmi, ArgType arg) {
-    callback(vmi, arg);
+  virtual void operator()(ArgTypes... arg) {
+    callback(arg...);
   }
 
   virtual std::string toString() {
@@ -63,19 +60,19 @@ public:
    * from a lambda function.
    * 
    * @param callback 
-   * @return std::shared_ptr<LambdaEventCallback<ArgType>> 
+   * @return std::shared_ptr<LambdaEventCallback<ArgTypes...>> 
    */
-  inline static std::shared_ptr<LambdaEventCallback<ArgType>>
+  inline static std::shared_ptr<LambdaEventCallback<ArgTypes...>>
   fromLambda(RawCallback callback) {
-    return std::make_shared<LambdaEventCallback<ArgType>>(callback);
+    return std::make_shared<LambdaEventCallback<ArgTypes...>>(callback);
   }
 };
 
-template <typename KeyType, typename ArgType>
+template <typename KeyType, typename... ArgTypes>
 class EventEmitter {
 public:
-  using Callback = EventCallback<ArgType>;
-  using LambdaCallback = LambdaEventCallback<ArgType>;
+  using Callback = EventCallback<ArgTypes...>;
+  using LambdaCallback = LambdaEventCallback<ArgTypes...>;
   using RawCallback = typename LambdaCallback::RawCallback;
   using CallbackPtr = std::shared_ptr<Callback>;
   using CallbackList = std::vector<CallbackPtr>;
@@ -93,14 +90,10 @@ protected:
    * @brief Emit an event identified by `key`.
    * 
    * @param key 
-   * @param vmi 
-   * @param arg 
+   * @param args 
    * @return unsigned int the number of callback(s) invoked.
    */
-  inline unsigned int emit(
-    KeyType key,
-    vmi_instance_t vmi, ArgType arg
-  ) {
+  inline unsigned int emit(KeyType key, ArgTypes... args) {
     if (events.count(key) == 0) {
       // std::map::operator[] may insert a new entry
       return 0;
@@ -108,7 +101,7 @@ protected:
     CallbackList callbacks = events[key];  // Make a copy
     for (CallbackPtr callback : callbacks) {
       try {
-        (*callback)(vmi, arg);
+        (*callback)(args...);
       } catch (std::exception &err) {
         std::cerr
           << toString() << ": ignoring error: " << err.what() << std::endl
@@ -179,9 +172,9 @@ public:
    * 
    * @param key 
    * @param callback 
-   * @return EventEmitter<KeyType, ArgType>&
+   * @return EventEmitter<KeyType, ArgTypes...>&
    */
-  inline EventEmitter<KeyType, ArgType>
+  inline EventEmitter<KeyType, ArgTypes...>
   &on(KeyType key, CallbackPtr callback) {
     // std::map::operator[] creates an entry if does not exist
     events[key].push_back(callback);
@@ -193,9 +186,9 @@ public:
    * 
    * @param key 
    * @param callback 
-   * @return EventEmitter<KeyType, ArgType>& 
+   * @return EventEmitter<KeyType, ArgTypes...>& 
    */
-  inline EventEmitter<KeyType, ArgType>
+  inline EventEmitter<KeyType, ArgTypes...>
   &on(KeyType key, RawCallback callback) {
     return on(key, LambdaCallback::fromLambda(callback));
   }
@@ -206,9 +199,9 @@ public:
    * @param key 
    * @param callback the callback to remove, or nullptr to clear all the
    * listeners registered with `key`.
-   * @return EventEmitter<KeyType, ArgType>& 
+   * @return EventEmitter<KeyType, ArgTypes...>& 
    */
-  inline EventEmitter<KeyType, ArgType>
+  inline EventEmitter<KeyType, ArgTypes...>
   &off(KeyType key, CallbackPtr callback) {
     if (!events.count(key)) {
       return *this;
