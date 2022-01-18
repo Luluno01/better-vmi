@@ -391,7 +391,7 @@ public:
     memEvent.data = &memEventData;
   }
 
-  ~MemEvent() {
+  virtual ~MemEvent() {
     tryUnregister();
   }
 

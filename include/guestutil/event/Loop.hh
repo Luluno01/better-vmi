@@ -159,7 +159,7 @@ public:
    * @param who who send the stop signal.
    */
   inline void stop(std::string who) {
-    DBG() << "Loop::stop(std::string )" << std::endl
+    DBG() << "Loop::stop(std::string)" << std::endl
           << "  Stop requested by " << who << std::endl;
     stopRequestedBy = who;
   }

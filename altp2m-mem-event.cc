@@ -10,6 +10,7 @@
 #include <guestutil/event/Loop.hh>
 #include <guestutil/event/MemEventRegistry.hh>
 #include <EventEmitter.hh>
+#include <signal.hh>
 
 #include <debug.hh>
 #include <pretty-print.hh>
@@ -23,34 +24,39 @@ private:
   event::Loop &loop;
   event::memory::MemEventRegistry &reg;
   int times;
+  bool interrupted;
 public:
   MemEventCallback(
     event::Loop &_loop,
     event::memory::MemEventRegistry &_reg,
     std::shared_ptr<event::memory::MemEvent> memEvent
-  ): loop(_loop), reg(_reg), times(0) {
-    memEvent->on(event::memory::MemEventKey::UNREGISTERED, [this](vmi_instance_t, vmi_event_t*) {
+  ):
+    EventCallback<vmi_instance_t, vmi_event_t*>(false),
+    loop(_loop), reg(_reg), times(0), interrupted(false) {
+    memEvent->once(event::memory::MemEventKey::UNREGISTERED, [this](vmi_instance_t, vmi_event_t*) {
       std::cout << "Memory event unregistered, pausing the event loop for stop" << std::endl;
       loop.schedulePause([this]() {
         std::cout << "Event loop paused and drained, stopping it" << std::endl;
         std::cout << "Memory event triggered " << F_D32(times) << " times" << std::endl;
-        loop.stop("hit-20-accesses");
+        loop.stop("MemEventCallback");
       }, "MemEventCallback");
-    });
+    }, "MemEventCallback::onUnregistered");
+    addr_t gfn = memEvent->getGFN();
+    SignalSource::getSignalSource().once(0, [this, gfn](int) {
+      if (interrupted) return;
+      interrupted = true;
+      std::cout << "Unregistering memory event" << std::endl;
+      reg.unregisterForGFN(gfn);
+    }, "MemEventCallback::onInterrupted");
   };
 
   virtual void operator()(vmi_instance_t, vmi_event_t *event) {
     auto vmiMemEvent = event->mem_event;
-    if (times++ < 20) {
-      std::cout<< std::right << std::setfill(' ') << std::setw(2) << F_D32(times) << ' '
-        << F_D32(event->vcpu_id) << ' '
-        << std::left << std::setfill(' ') << std::setw(3) << pp::MemoryAccess(vmiMemEvent.out_access) << ' '
-        << F_UH64(vmiMemEvent.gla) << std::endl;
-    }
-    if (times == 20) {
-      std::cout << "Unregistering memory event" << std::endl;
-      reg.unregisterForGFN(vmiMemEvent.gfn);
-    }
+    std::cout << F_D32(times) << '\t'
+      << F_D32(event->vcpu_id) << '\t'
+      << std::left << std::setfill(' ') << std::setw(3) << pp::MemoryAccess(vmiMemEvent.out_access) << ' '
+      << F_UH64(vmiMemEvent.gla) << std::endl;
+    times++;
   }
 
   virtual std::string toString() {
@@ -108,6 +114,7 @@ int doTheJob() {
 }
 
 int main() {
+  SignalSource::getSignalSource().init();
   try {
     return doTheJob();
   } catch (std::exception &e) {

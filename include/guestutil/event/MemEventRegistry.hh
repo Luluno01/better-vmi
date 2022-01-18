@@ -127,6 +127,7 @@ private:
     addr_t gfn;
   public:
     UnregisteredCallback(MemEventRegistry &_reg, addr_t _gfn):
+      EventCallback<vmi_instance_t, vmi_event_t*>(true),
       reg(_reg), gfn(_gfn) {};
 
     virtual void operator()(vmi_instance_t vmi, vmi_event_t *) {
@@ -223,7 +224,7 @@ public:
     perCPUActiveEvents{vmi_get_num_vcpus(vmi)},
     okaySlat(0), trapSlat(0) {};
 
-  ~MemEventRegistry() {
+  virtual ~MemEventRegistry() {
     DBG() << "~MemEventRegistry()" << std::endl;
     if (xc) {
       if (xc_interface_close(xc) < 0) {

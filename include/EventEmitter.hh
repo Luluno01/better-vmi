@@ -16,7 +16,34 @@
 
 template <typename... ArgTypes>
 class EventCallback {
+protected:
+  /**
+   * @brief If this callback should be removed once called.
+   * 
+   */
+  bool once;
 public:
+  EventCallback(bool _once): once(_once) {};
+
+  /**
+   * @brief Get if this callback should be removed once called.
+   * 
+   * @return true 
+   * @return false 
+   */
+  inline bool isOnce() {
+    return once;
+  }
+
+  /**
+   * @brief Set if this callback should be removed once called.
+   * 
+   * @param val 
+   */
+  inline void setOnce(bool val) {
+    once = val;
+  }
+
   /**
    * @brief The actual callback.
    * 
@@ -31,6 +58,12 @@ public:
   virtual std::string toString() = 0;
 
   virtual ~EventCallback() {};
+
+  inline friend std::ostream
+  &operator<<(std::ostream &os, const EventCallback<ArgTypes...> &self) {
+    os << self.toString();
+    return os;
+  }
 };
 
 /**
@@ -45,7 +78,8 @@ private:
   RawCallback callback;
   std::string desc;
 public:
-  LambdaEventCallback(RawCallback _callback): callback(_callback) {};
+  LambdaEventCallback(bool once, RawCallback _callback, std::string _desc):
+    EventCallback<ArgTypes...>(once), callback(_callback), desc(_desc) {};
 
   virtual void operator()(ArgTypes... arg) {
     callback(arg...);
@@ -59,12 +93,15 @@ public:
    * @brief A shortcut for creating a shared pointer to `LambdaEventCallback`
    * from a lambda function.
    * 
+   * @param once if this is a one-time callback.
    * @param callback 
+   * @param desc 
    * @return std::shared_ptr<LambdaEventCallback<ArgTypes...>> 
    */
   inline static std::shared_ptr<LambdaEventCallback<ArgTypes...>>
-  fromLambda(RawCallback callback) {
-    return std::make_shared<LambdaEventCallback<ArgTypes...>>(callback);
+  fromLambda(bool once, RawCallback callback, std::string desc) {
+    return std::make_shared<LambdaEventCallback<ArgTypes...>>(
+      once, callback, desc);
   }
 };
 
@@ -106,6 +143,11 @@ protected:
         std::cerr
           << toString() << ": ignoring error: " << err.what() << std::endl
           << "  in callback " << callback->toString() << std::endl;
+      }
+      if (callback->isOnce()) {
+        DBG() << toString()
+          << ": removing once callback " << callback->toString() << std::endl;
+        off(key, callback);
       }
     }
     return callbacks.size();
@@ -182,15 +224,53 @@ public:
   }
 
   /**
-   * @brief Listen to events specified by `key`.
+   * @brief Listen to an event specified by `key`.
+   * 
+   * Note that listeners added using this function can only be removed by
+   * clearing all listener on the event specified by `key`. To get a shared
+   * pointer to the created callback for later removal, use the overloaded
+   * version.
    * 
    * @param key 
    * @param callback 
+   * @param desc 
    * @return EventEmitter<KeyType, ArgTypes...>& 
    */
   inline EventEmitter<KeyType, ArgTypes...>
-  &on(KeyType key, RawCallback callback) {
-    return on(key, LambdaCallback::fromLambda(callback));
+  &on(KeyType key, RawCallback callback, std::string desc) {
+    return on(key, LambdaCallback::fromLambda(false, callback, desc));
+  }
+
+  /**
+   * @brief Listen to an event specified by `key`, returning callback created
+   * from the raw callback.
+   * 
+   * @tparam once if this is a once-time callback.
+   * @param key 
+   * @param callback 
+   * @param desc 
+   * @return CallbackPtr created callback for later removal.
+   */
+  template <bool once>
+  inline CallbackPtr on(KeyType key, RawCallback callback, std::string desc) {
+    auto wrapped = LambdaCallback::fromLambda(once, callback, desc);
+    on(key, wrapped);
+    return wrapped;
+  }
+
+  /**
+   * @brief Listen to an event specified by `key` once, returning created
+   * callback.
+   * 
+   * @param key 
+   * @param callback 
+   * @param desc 
+   * @return CallbackPtr the wrapped callback used to remove the listener.
+   */
+  inline CallbackPtr once(
+    KeyType key,
+    RawCallback callback, std::string desc) {
+    return on<true>(key, callback, desc);
   }
 
   /**
